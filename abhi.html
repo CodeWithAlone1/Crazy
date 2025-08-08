@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Bypass</title>
+    <link href="https://fonts.googleapis.com/css2?family=Righteous&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: Conto-Bold;
+            src: url(Conto-Bold.ttf);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            font-family: Conto-Bold, 'Righteous', sans-serif;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #141414;
+            color: white;
+            text-align: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+        }
+
+        h2 {
+            font-size: 22px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            font-family: 'Righteous', cursive;
+            text-shadow: 0px 0px 5px rgba(255, 255, 255, 0.5);
+        }
+
+        .input, .formBtn {
+            width: 100%;
+            height: 50px;
+            margin: 10px 0;
+            border-radius: 7px;
+            font-size: 16px;
+            letter-spacing: 1px;
+            outline: none;
+            transition: 0.3s;
+            text-align: center;
+        }
+
+        .input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px;
+        }
+
+        .input:focus {
+            border-color: cyan;
+            box-shadow: 0px 0px 10px cyan;
+        }
+
+        .formBtn {
+            background: cyan;
+            border: none;
+            color: black;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0px 0px 10px rgba(0, 255, 255, 0.8);
+        }
+
+        .formBtn:hover {
+            background: rgb(0, 200, 200);
+            box-shadow: 0px 0px 15px rgba(0, 255, 255, 1);
+        }
+
+        .error-box, .output-box {
+            padding: 15px;
+            font-size: 14px;
+            margin-top: 20px;
+            text-align: center;
+            display: block;
+        }
+
+        .error-box {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 1px solid red;
+        }
+
+        .output-box {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 1px solid lime;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Abhi bus</h2>
+
+        <form id="taskForm">
+            <input type="text" class="input" id="task_link" placeholder="https://www.dl-appmarket.com" required>
+            <br>
+            <button type="submit" class="formBtn">Bypass</button>
+        </form>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        document.getElementById('taskForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const taskLink = document.getElementById('task_link').value.trim();
+            const messageBox = document.getElementById('message');
+            messageBox.innerHTML = "";
+
+            try {
+                const urlParams = new URL(taskLink).searchParams;
+                const clickId = urlParams.get('clickId');
+
+                if (!clickId) {
+                    messageBox.innerHTML = `<div class="error-box">Error: Invalid task link! No click_id found.</div>`;
+                    return;
+                }
+
+                const postbackUrl = `https://affiliate.moblegend.net/event?click_id=${encodeURIComponent(clickId)}`;
+
+                // Try fetching the response
+                const response = await fetch(postbackUrl);
+                
+                if (!response.ok) {
+                    throw new Error("Unable to fetch response.");
+                }
+
+                const text = await response.text();
+                messageBox.innerHTML = `<div class="output-box">${text}</div>`;
+
+                setTimeout(() => {
+                    window.location.href = "https://t.me/crazylooter20";
+                }, 2000);
+
+            } catch (err) {
+                messageBox.innerHTML = `<div class="error-box">Error: ${err.message}</div>`;
+            }
+        });
+    </script>
+
+</body>
+</html>
