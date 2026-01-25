@@ -27,7 +27,7 @@ try:
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
-    print("⚠️ Telegram module not installed. Install with: pip install python-telegram-bot")
+    print("⚠️ Telegram module not installed")
 
 # Load environment variables
 load_dotenv()
@@ -57,9 +57,9 @@ class SheinVoucherBot:
         self.users_file = os.path.join(self.data_dir, "users.json")
         
         # Performance settings - MAXIMUM PARALLELISM
-        self.max_workers = int(os.getenv('MAX_WORKERS', '100'))  # Extreme parallel processing
-        self.request_timeout = int(os.getenv('REQUEST_TIMEOUT', '8'))  # Faster timeout
-        self.batch_size = int(os.getenv('BATCH_SIZE', '50'))  # Larger batches
+        self.max_workers = int(os.getenv('MAX_WORKERS', '100'))
+        self.request_timeout = int(os.getenv('REQUEST_TIMEOUT', '8'))
+        self.batch_size = int(os.getenv('BATCH_SIZE', '50'))
         
         # Ultra Fast Mode settings
         self.continuous_mode = {}
@@ -98,18 +98,18 @@ class SheinVoucherBot:
     # ==============================================
     
     def generate_ad_id(self):
-        """Generate fresh ad_id - Ultra Fast"""
+        """Generate fresh ad_id"""
         return str(uuid.uuid4())
     
     def load_all_data(self):
-        """Load all data files - Fast"""
+        """Load all data files"""
         self.numbers = self.load_json(self.nm_file, [])
         self.vouchers = self.load_json(self.vouchers_file, [])
         self.users = self.load_json(self.users_file, {})
         logger.info(f"📊 Data loaded: {len(self.numbers)} numbers, {len(self.vouchers)} vouchers")
     
     def load_json(self, filename, default):
-        """Load JSON file or return default"""
+        """Load JSON file"""
         try:
             if os.path.exists(filename):
                 with open(filename, 'r', encoding='utf-8') as f:
@@ -119,7 +119,7 @@ class SheinVoucherBot:
         return default
     
     def save_json(self, filename, data):
-        """Save data to JSON file - Fast with lock"""
+        """Save data to JSON file"""
         try:
             with self.lock:
                 with open(filename, 'w', encoding='utf-8') as f:
@@ -128,7 +128,7 @@ class SheinVoucherBot:
             pass
     
     def generate_valid_indian_number(self):
-        """Generate valid Indian mobile numbers - Ultra Fast"""
+        """Generate valid Indian mobile numbers"""
         prefixes = ['70', '71', '72', '73', '74', '75', '76', '77', '78', '79',
                    '80', '81', '82', '83', '84', '85', '86', '87', '88', '89',
                    '90', '91', '92', '93', '94', '95', '96', '97', '98', '99']
@@ -138,36 +138,34 @@ class SheinVoucherBot:
         return number
     
     def random_ip(self):
-        """Generate random IP address - Fast"""
+        """Generate random IP address"""
         return f"{random.randint(100, 200)}.{random.randint(10, 200)}.{random.randint(10, 200)}.{random.randint(10, 250)}"
     
     def gen_device_id(self):
-        """Generate random device ID - Fast"""
+        """Generate random device ID"""
         device_str = f"android-{int(time.time())}-{random.randint(10000, 99999)}"
         return hashlib.md5(device_str.encode()).hexdigest().upper()
     
     def random_name(self):
-        """Generate random Indian name - Fast"""
+        """Generate random Indian name"""
         names = ["Aarav", "Ankit", "Rahul", "Rohit", "Aman", "Vikas", "Kunal", "Sahil", "Mohit",
                 "Priya", "Neha", "Anjali", "Pooja", "Sneha", "Riya", "Kriti", "Divya", "Shreya"]
         return random.choice(names)
     
     def random_gender(self):
-        """Generate random gender - Fast"""
+        """Generate random gender"""
         return random.choice(["MALE", "FEMALE"])
     
     def make_request(self, url, method="POST", data=None, headers=None, timeout=None, retry=1):
-        """Make HTTP request with minimal retry - Ultra Fast"""
+        """Make HTTP request - Ultra Fast"""
         if timeout is None:
             timeout = self.request_timeout
         
         try:
             if method.upper() == "POST":
-                response = requests.post(url, data=data, headers=headers, 
-                                       timeout=timeout, verify=False)
+                response = requests.post(url, data=data, headers=headers, timeout=timeout, verify=False)
             else:
-                response = requests.get(url, headers=headers, 
-                                      timeout=timeout, verify=False)
+                response = requests.get(url, headers=headers, timeout=timeout, verify=False)
             
             # Update performance counter
             current_time = time.time()
@@ -179,7 +177,7 @@ class SheinVoucherBot:
             
             return response if response and response.status_code == 200 else None
                 
-        except Exception as e:
+        except:
             return None
     
     def send_otp(self, number):
@@ -215,7 +213,7 @@ class SheinVoucherBot:
     def get_client_token_fast(self):
         """Get client token - Fast with caching"""
         current_time = time.time()
-        if self.client_token_cache and (current_time - self.token_cache_time) < 300:  # Cache for 5 minutes
+        if self.client_token_cache and (current_time - self.token_cache_time) < 300:
             return self.client_token_cache
         
         device_id = self.gen_device_id()
@@ -291,12 +289,7 @@ class SheinVoucherBot:
             "user_name": self.random_name()
         }
         
-        response = self.make_request(
-            self.creator_token_url, 
-            data=json.dumps(data), 
-            headers=headers,
-            timeout=5
-        )
+        response = self.make_request(self.creator_token_url, data=json.dumps(data), headers=headers, timeout=5)
         
         if response:
             try:
@@ -337,7 +330,7 @@ class SheinVoucherBot:
         return None
     
     def find_valid_numbers_batch(self, batch_size=10):
-        """Find multiple valid numbers in parallel - Ultra Fast"""
+        """Find multiple valid numbers in parallel"""
         numbers_to_check = [self.generate_valid_indian_number() for _ in range(batch_size)]
         valid_numbers = []
         
@@ -364,7 +357,7 @@ class SheinVoucherBot:
         return valid_numbers
     
     def process_numbers_for_vouchers_parallel(self, numbers):
-        """Process multiple numbers for vouchers in parallel - Ultra Fast"""
+        """Process multiple numbers for vouchers in parallel"""
         vouchers = []
         
         def process_single(number):
@@ -413,16 +406,19 @@ class SheinVoucherBot:
             
             # Initial message
             if chat_id and TELEGRAM_AVAILABLE:
-                await self.send_telegram_message(
-                    chat_id,
-                    "🚀 *ULTRA FAST MODE ACTIVATED*\n\n"
-                    "Starting extreme parallel collection...\n"
-                    "• No delays between requests\n"
-                    "• Maximum parallel processing\n"
-                    "• Real-time results\n\n"
-                    "⚡ Processing at maximum speed!",
-                    parse_mode="Markdown"
-                )
+                try:
+                    await self.send_telegram_message(
+                        chat_id,
+                        "🚀 *ULTRA FAST MODE ACTIVATED*\n\n"
+                        "Starting extreme parallel collection...\n"
+                        "• No delays between requests\n"
+                        "• Maximum parallel processing\n"
+                        "• Real-time results\n\n"
+                        "⚡ Processing at maximum speed!",
+                        parse_mode="Markdown"
+                    )
+                except:
+                    pass
             
             while self.continuous_mode.get(user_id, False) and not self.stop_continuous.get(user_id, False):
                 try:
@@ -459,7 +455,7 @@ class SheinVoucherBot:
                             self.continuous_stats[user_id]["total_attempts"] += len(valid_numbers)
                         
                         # Send notification if Telegram is available
-                        if chat_id and TELEGRAM_AVAILABLE and len(batch_vouchers) > 0:
+                        if chat_id and TELEGRAM_AVAILABLE and len(batch_vouchers) > 0 and batch_count % 5 == 0:
                             try:
                                 await self.send_telegram_message(
                                     chat_id,
@@ -476,27 +472,28 @@ class SheinVoucherBot:
                                 pass
                     
                     # NO SLEEP - CONTINUOUS PROCESSING
-                    # Just yield control briefly to prevent blocking
                     await asyncio.sleep(0.001)
                     
                 except Exception as e:
                     logger.error(f"Batch error: {e}")
-                    # Continue anyway
                     await asyncio.sleep(0.1)
             
             # Final message
             if chat_id and TELEGRAM_AVAILABLE:
-                await self.send_telegram_message(
-                    chat_id,
-                    f"⏹️ *Ultra Fast Mode Stopped*\n\n"
-                    f"📊 *Final Results:*\n"
-                    f"• Total batches: {batch_count}\n"
-                    f"• Total vouchers: {total_vouchers}\n"
-                    f"• Total value: ₹{total_value:.2f}\n"
-                    f"• Max RPS: {self.requests_per_second}/sec\n\n"
-                    f"✅ All data saved successfully!",
-                    parse_mode="Markdown"
-                )
+                try:
+                    await self.send_telegram_message(
+                        chat_id,
+                        f"⏹️ *Ultra Fast Mode Stopped*\n\n"
+                        f"📊 *Final Results:*\n"
+                        f"• Total batches: {batch_count}\n"
+                        f"• Total vouchers: {total_vouchers}\n"
+                        f"• Total value: ₹{total_value:.2f}\n"
+                        f"• Max RPS: {self.requests_per_second}/sec\n\n"
+                        f"✅ All data saved successfully!",
+                        parse_mode="Markdown"
+                    )
+                except:
+                    pass
             
         except Exception as e:
             logger.error(f"Continuous mode fatal error: {e}")
@@ -504,7 +501,6 @@ class SheinVoucherBot:
     async def send_telegram_message(self, chat_id, text, parse_mode=None):
         """Send Telegram message"""
         try:
-            from telegram.error import TelegramError
             from telegram.constants import ParseMode
             
             if not hasattr(self, 'application') or not self.application:
@@ -515,13 +511,11 @@ class SheinVoucherBot:
                 text=text,
                 parse_mode=parse_mode or ParseMode.MARKDOWN
             )
-        except TelegramError as e:
-            logger.error(f"Telegram send error: {e}")
         except Exception as e:
             logger.error(f"Message send error: {e}")
     
     # ==============================================
-    # TELEGRAM BOT HANDLERS (Simplified)
+    # TELEGRAM BOT HANDLERS
     # ==============================================
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -670,7 +664,8 @@ class SheinVoucherBot:
         total_value = 0
         
         for voucher in self.vouchers:
-            if voucher.get('user_id') == user_id:
+            # For auto collector, all vouchers go to system
+            if user_id == "auto_collector" or voucher.get('user_id') == user_id:
                 user_vouchers.append(voucher)
                 try:
                     amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip()
@@ -846,15 +841,21 @@ def start_collector():
 def main():
     """Main function"""
     # Start auto-collector in background
-    bot_instance.start_auto_collector()
+    if os.getenv('AUTO_START', 'true').lower() == 'true':
+        bot_instance.start_auto_collector()
     
     # Start Telegram bot if token is provided
     if bot_instance.bot_token and TELEGRAM_AVAILABLE:
-        bot_instance.run_telegram_bot()
-    else:
-        # Just run Flask for Render
-        port = int(os.environ.get('PORT', 8080))
-        app.run(host='0.0.0.0', port=port, debug=False)
+        # Run Telegram bot in background thread
+        import threading
+        telegram_thread = threading.Thread(target=bot_instance.run_telegram_bot, daemon=True)
+        telegram_thread.start()
+        logger.info("Telegram bot started in background")
+    
+    # Start Flask app
+    port = int(os.environ.get('PORT', 8080))
+    logger.info(f"Starting Flask app on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
     main()
