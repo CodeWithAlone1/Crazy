@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SHEIN Voucher Bot - Ultra Fast Continuous Auto-Collector
-Version: 7.0 - Fixed Telegram import issues
+SHEIN Voucher Bot - Ultra Fast Auto-Collector
+Version: 8.0 - Clean and working
 Deployment: Render.com Flask compatible
 """
 
@@ -38,9 +38,9 @@ try:
     from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
     from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
     TELEGRAM_AVAILABLE = True
-    logger.info(" Telegram module loaded successfully")
+    logger.info("✅ Telegram module loaded successfully")
 except ImportError as e:
-    logger.warning(f" Telegram module not installed: {e}")
+    logger.warning(f"⚠️ Telegram module not installed: {e}")
 
 class SheinVoucherBot:
     def __init__(self):
@@ -82,14 +82,14 @@ class SheinVoucherBot:
         # Telegram bot
         self.application = None
         
-        logger.info(f" Bot initialized with {self.max_workers} workers!")
+        logger.info(f"🚀 Bot initialized with {self.max_workers} workers!")
     
     def load_all_data(self):
         """Load all data files"""
         self.numbers = self.load_json(self.nm_file, [])
         self.vouchers = self.load_json(self.vouchers_file, [])
         self.users = self.load_json(self.users_file, {})
-        logger.info(f" Data loaded: {len(self.numbers)} numbers, {len(self.vouchers)} vouchers")
+        logger.info(f"📊 Data loaded: {len(self.numbers)} numbers, {len(self.vouchers)} vouchers")
     
     def load_json(self, filename, default):
         """Load JSON file"""
@@ -401,7 +401,7 @@ class SheinVoucherBot:
             return
         
         self.collector_running = True
-        logger.info(" Starting background collector...")
+        logger.info("🚀 Starting background collector...")
         
         batch_count = 0
         total_vouchers = 0
@@ -430,13 +430,13 @@ class SheinVoucherBot:
                     total_value = 0
                     for voucher in batch_vouchers:
                         try:
-                            amount = float(str(voucher["amount"]).replace("", "").replace(",", "").strip())
+                            amount = float(str(voucher["amount"]).replace("₹", "").replace(",", "").strip())
                             total_value += amount
                         except:
                             pass
                     
                     if batch_count % 5 == 0:
-                        logger.info(f" Batch {batch_count}: Found {len(batch_vouchers)} vouchers ({total_value:.2f}) | Total: {total_vouchers}")
+                        logger.info(f"✅ Batch {batch_count}: Found {len(batch_vouchers)} vouchers (₹{total_value:.2f}) | Total: {total_vouchers}")
                 
                 time.sleep(0.1)
                 
@@ -444,254 +444,259 @@ class SheinVoucherBot:
                 logger.error(f"Batch error: {e}")
                 time.sleep(1)
         
-        logger.info(" Collector stopped")
+        logger.info("🛑 Collector stopped")
+
+# ==============================================
+# TELEGRAM BOT HANDLERS (Separate class)
+# ==============================================
+
+class TelegramBot:
+    def __init__(self, voucher_bot):
+        self.voucher_bot = voucher_bot
+        self.application = None
+        self.running = False
     
-    # ==============================================
-    # TELEGRAM BOT HANDLERS (Only if Telegram available)
-    # ==============================================
+    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /start command"""
+        user_id = str(update.effective_user.id)
+        
+        # Save user
+        if user_id not in self.voucher_bot.users:
+            self.voucher_bot.users[user_id] = {
+                "username": update.effective_user.username,
+                "first_name": update.effective_user.first_name,
+                "join_date": datetime.now().isoformat(),
+                "last_active": datetime.now().isoformat()
+            }
+            self.voucher_bot.save_json(self.voucher_bot.users_file, self.voucher_bot.users)
+        
+        keyboard = [
+            [InlineKeyboardButton("🚀 Start Auto-Collector", callback_data="start")],
+            [InlineKeyboardButton("📊 Statistics", callback_data="stats")],
+            [InlineKeyboardButton("🎫 View Vouchers", callback_data="vouchers")],
+            [InlineKeyboardButton("❓ Help", callback_data="help")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "🎫 *SHEIN Voucher Bot*\n\n"
+            "⚡ Ultra Fast Auto-Collector\n"
+            "🔥 Continuous background collection\n"
+            "💨 Maximum speed processing\n\n"
+            "Select an option:",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
     
-    if TELEGRAM_AVAILABLE:
-        async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-            """Handle /start command"""
-            user_id = str(update.effective_user.id)
-            
-            # Save user
-            if user_id not in self.users:
-                self.users[user_id] = {
-                    "username": update.effective_user.username,
-                    "first_name": update.effective_user.first_name,
-                    "join_date": datetime.now().isoformat(),
-                    "last_active": datetime.now().isoformat()
-                }
-                self.save_json(self.users_file, self.users)
-            
-            keyboard = [
-                [InlineKeyboardButton(" Start Auto-Collector", callback_data="start")],
-                [InlineKeyboardButton(" Statistics", callback_data="stats")],
-                [InlineKeyboardButton(" View Vouchers", callback_data="vouchers")],
-                [InlineKeyboardButton(" Help", callback_data="help")]
-            ]
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
+    async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /stats command"""
+        total_vouchers = len(self.voucher_bot.vouchers)
+        total_users = len(self.voucher_bot.users)
+        
+        total_value = 0
+        for voucher in self.voucher_bot.vouchers:
+            try:
+                amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip()
+                total_value += float(amount)
+            except:
+                pass
+        
+        message = (
+            f"📊 *Bot Statistics*\n\n"
+            f"• Total vouchers: {total_vouchers}\n"
+            f"• Total value: ₹{total_value:.2f}\n"
+            f"• Total users: {total_users}\n"
+            f"• Valid numbers: {len(self.voucher_bot.numbers)}\n"
+            f"• Requests/sec: {self.voucher_bot.requests_per_second}\n"
+            f"• Collector: {'✅ Running' if self.voucher_bot.collector_running else '❌ Stopped'}"
+        )
+        
+        await update.message.reply_text(message, parse_mode="Markdown")
+    
+    async def vouchers_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /vouchers command"""
+        if not self.voucher_bot.vouchers:
             await update.message.reply_text(
-                " *SHEIN Voucher Bot*\n\n"
-                " Ultra Fast Auto-Collector\n"
-                " Continuous background collection\n"
-                " Maximum speed processing\n\n"
-                "Select an option:",
-                reply_markup=reply_markup,
+                "📭 *No Vouchers Yet*\n\n"
+                "No vouchers have been collected yet.\n"
+                "Start the collector with /start",
                 parse_mode="Markdown"
             )
+            return
         
-        async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-            """Handle /stats command"""
-            total_vouchers = len(self.vouchers)
-            total_users = len(self.users)
+        # Show recent 10 vouchers
+        recent = self.voucher_bot.vouchers[-10:] if len(self.voucher_bot.vouchers) > 10 else self.voucher_bot.vouchers
+        vouchers_text = "\n".join([f"• `{v['voucher_code']}` - ₹{v['amount']}" for v in recent])
+        
+        total_value = 0
+        for voucher in self.voucher_bot.vouchers:
+            try:
+                amount = float(str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip())
+                total_value += float(amount)
+            except:
+                pass
+        
+        message = (
+            f"🎫 *Collected Vouchers*\n\n"
+            f"• Total: {len(self.voucher_bot.vouchers)}\n"
+            f"• Value: ₹{total_value:.2f}\n\n"
+            f"*Recent vouchers:*\n{vouchers_text}"
+        )
+        
+        if len(self.voucher_bot.vouchers) > 10:
+            message += f"\n\n... and {len(self.voucher_bot.vouchers) - 10} more vouchers"
+        
+        await update.message.reply_text(message, parse_mode="Markdown")
+    
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /help command"""
+        help_text = (
+            "🎫 *SHEIN Voucher Bot Help*\n\n"
+            "*Commands:*\n"
+            "• /start - Show main menu\n"
+            "• /stats - Show statistics\n"
+            "• /vouchers - View collected vouchers\n"
+            "• /help - This help message\n\n"
+            "*How it works:*\n"
+            "1. Bot runs continuously in background\n"
+            "2. Automatically finds valid numbers\n"
+            "3. Fetches vouchers from valid accounts\n"
+            "4. Saves all vouchers for viewing\n\n"
+            "*Features:*\n"
+            "• 24/7 automatic collection\n"
+            "• Parallel processing\n"
+            "• Real-time statistics\n"
+            "• Web dashboard\n\n"
+            "⚠️ Educational use only"
+        )
+        
+        await update.message.reply_text(help_text, parse_mode="Markdown")
+    
+    async def callback_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle callback queries"""
+        query = update.callback_query
+        await query.answer()
+        
+        if query.data == "start":
+            if not self.voucher_bot.collector_running:
+                # Start collector in background thread
+                collector_thread = threading.Thread(target=self.voucher_bot.run_collector, daemon=True)
+                collector_thread.start()
+                
+                await query.edit_message_text(
+                    "🚀 *Collector Started!*\n\n"
+                    "Background collector is now running.\n"
+                    "It will automatically:\n"
+                    "• Find valid numbers\n"
+                    "• Fetch vouchers\n"
+                    "• Save results\n\n"
+                    "Check /stats for progress.",
+                    parse_mode="Markdown"
+                )
+            else:
+                await query.edit_message_text(
+                    "🟢 *Collector Already Running*\n\n"
+                    "Background collector is already active.\n"
+                    "Vouchers are being collected automatically.",
+                    parse_mode="Markdown"
+                )
+        
+        elif query.data == "stats":
+            total_vouchers = len(self.voucher_bot.vouchers)
+            total_users = len(self.voucher_bot.users)
             
             total_value = 0
-            for voucher in self.vouchers:
+            for voucher in self.voucher_bot.vouchers:
                 try:
-                    amount = str(voucher.get('amount', '0')).replace('', '').replace(',', '').strip()
+                    amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip()
                     total_value += float(amount)
                 except:
                     pass
             
             message = (
-                f" *Bot Statistics*\n\n"
-                f" Total vouchers: {total_vouchers}\n"
-                f" Total value: {total_value:.2f}\n"
-                f" Total users: {total_users}\n"
-                f" Valid numbers: {len(self.numbers)}\n"
-                f" Requests/sec: {self.requests_per_second}\n"
-                f" Collector: {' Running' if self.collector_running else ' Stopped'}"
+                f"📊 *Live Statistics*\n\n"
+                f"• Total vouchers: {total_vouchers}\n"
+                f"• Total value: ₹{total_value:.2f}\n"
+                f"• Total users: {total_users}\n"
+                f"• Valid numbers: {len(self.voucher_bot.numbers)}\n"
+                f"• Requests/sec: {self.voucher_bot.requests_per_second}\n"
+                f"• Collector: {'✅ Running' if self.voucher_bot.collector_running else '❌ Stopped'}\n\n"
+                f"Last updated: {datetime.now().strftime('%H:%M:%S')}"
             )
             
-            await update.message.reply_text(message, parse_mode="Markdown")
+            await query.edit_message_text(message, parse_mode="Markdown")
         
-        async def vouchers_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-            """Handle /vouchers command"""
-            if not self.vouchers:
-                await update.message.reply_text(
-                    " *No Vouchers Yet*\n\n"
+        elif query.data == "vouchers":
+            if not self.voucher_bot.vouchers:
+                await query.edit_message_text(
+                    "📭 *No Vouchers Yet*\n\n"
                     "No vouchers have been collected yet.\n"
-                    "Start the collector with /start",
+                    "Start the collector to begin!",
                     parse_mode="Markdown"
                 )
                 return
             
             # Show recent 10 vouchers
-            recent = self.vouchers[-10:] if len(self.vouchers) > 10 else self.vouchers
-            vouchers_text = "\n".join([f" `{v['voucher_code']}` - {v['amount']}" for v in recent])
+            recent = self.voucher_bot.vouchers[-10:] if len(self.voucher_bot.vouchers) > 10 else self.voucher_bot.vouchers
+            vouchers_text = "\n".join([f"• `{v['voucher_code']}` - ₹{v['amount']}" for v in recent])
             
             total_value = 0
-            for voucher in self.vouchers:
+            for voucher in self.voucher_bot.vouchers:
                 try:
-                    amount = float(str(voucher.get('amount', '0')).replace('', '').replace(',', '').strip())
+                    amount = float(str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip())
                     total_value += float(amount)
                 except:
                     pass
             
             message = (
-                f" *Collected Vouchers*\n\n"
-                f" Total: {len(self.vouchers)}\n"
-                f" Value: {total_value:.2f}\n\n"
+                f"🎫 *Collected Vouchers*\n\n"
+                f"• Total: {len(self.voucher_bot.vouchers)}\n"
+                f"• Value: ₹{total_value:.2f}\n\n"
                 f"*Recent vouchers:*\n{vouchers_text}"
             )
             
-            if len(self.vouchers) > 10:
-                message += f"\n\n... and {len(self.vouchers) - 10} more vouchers"
+            if len(self.voucher_bot.vouchers) > 10:
+                message += f"\n\n... and {len(self.voucher_bot.vouchers) - 10} more vouchers"
             
-            await update.message.reply_text(message, parse_mode="Markdown")
+            await query.edit_message_text(message, parse_mode="Markdown")
         
-        async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-            """Handle /help command"""
+        elif query.data == "help":
             help_text = (
-                " *SHEIN Voucher Bot Help*\n\n"
-                "*Commands:*\n"
-                " /start - Show main menu\n"
-                " /stats - Show statistics\n"
-                " /vouchers - View collected vouchers\n"
-                " /help - This help message\n\n"
-                "*How it works:*\n"
-                "1. Bot runs continuously in background\n"
-                "2. Automatically finds valid numbers\n"
-                "3. Fetches vouchers from valid accounts\n"
-                "4. Saves all vouchers for viewing\n\n"
-                "*Features:*\n"
-                " 24/7 automatic collection\n"
-                " Parallel processing\n"
-                " Real-time statistics\n"
-                " Web dashboard\n\n"
-                " Educational use only"
+                "🎫 *SHEIN Voucher Bot Help*\n\n"
+                "*How to use:*\n"
+                "1. Click 'Start Auto-Collector'\n"
+                "2. Bot runs in background 24/7\n"
+                "3. View collected vouchers anytime\n"
+                "4. Check statistics for progress\n\n"
+                "*Commands in chat:*\n"
+                "• /start - Show menu\n"
+                "• /stats - Statistics\n"
+                "• /vouchers - View vouchers\n"
+                "• /help - Help message\n\n"
+                "*Note:*\n"
+                "• Collector runs continuously\n"
+                "• All vouchers are saved\n"
+                "• Access via web dashboard too"
             )
             
-            await update.message.reply_text(help_text, parse_mode="Markdown")
-        
-        async def callback_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-            """Handle callback queries"""
-            query = update.callback_query
-            await query.answer()
-            
-            if query.data == "start":
-                if not self.collector_running:
-                    # Start collector in background thread
-                    collector_thread = threading.Thread(target=self.run_collector, daemon=True)
-                    collector_thread.start()
-                    
-                    await query.edit_message_text(
-                        " *Collector Started!*\n\n"
-                        "Background collector is now running.\n"
-                        "It will automatically:\n"
-                        " Find valid numbers\n"
-                        " Fetch vouchers\n"
-                        " Save results\n\n"
-                        "Check /stats for progress.",
-                        parse_mode="Markdown"
-                    )
-                else:
-                    await query.edit_message_text(
-                        " *Collector Already Running*\n\n"
-                        "Background collector is already active.\n"
-                        "Vouchers are being collected automatically.",
-                        parse_mode="Markdown"
-                    )
-            
-            elif query.data == "stats":
-                total_vouchers = len(self.vouchers)
-                total_users = len(self.users)
-                
-                total_value = 0
-                for voucher in self.vouchers:
-                    try:
-                        amount = str(voucher.get('amount', '0')).replace('', '').replace(',', '').strip()
-                        total_value += float(amount)
-                    except:
-                        pass
-                
-                message = (
-                    f" *Live Statistics*\n\n"
-                    f" Total vouchers: {total_vouchers}\n"
-                    f" Total value: {total_value:.2f}\n"
-                    f" Total users: {total_users}\n"
-                    f" Valid numbers: {len(self.numbers)}\n"
-                    f" Requests/sec: {self.requests_per_second}\n"
-                    f" Collector: {' Running' if self.collector_running else ' Stopped'}\n\n"
-                    f"Last updated: {datetime.now().strftime('%H:%M:%S')}"
-                )
-                
-                await query.edit_message_text(message, parse_mode="Markdown")
-            
-            elif query.data == "vouchers":
-                if not self.vouchers:
-                    await query.edit_message_text(
-                        " *No Vouchers Yet*\n\n"
-                        "No vouchers have been collected yet.\n"
-                        "Start the collector to begin!",
-                        parse_mode="Markdown"
-                    )
-                    return
-                
-                # Show recent 10 vouchers
-                recent = self.vouchers[-10:] if len(self.vouchers) > 10 else self.vouchers
-                vouchers_text = "\n".join([f" `{v['voucher_code']}` - {v['amount']}" for v in recent])
-                
-                total_value = 0
-                for voucher in self.vouchers:
-                    try:
-                        amount = float(str(voucher.get('amount', '0')).replace('', '').replace(',', '').strip())
-                        total_value += float(amount)
-                    except:
-                        pass
-                
-                message = (
-                    f" *Collected Vouchers*\n\n"
-                    f" Total: {len(self.vouchers)}\n"
-                    f" Value: {total_value:.2f}\n\n"
-                    f"*Recent vouchers:*\n{vouchers_text}"
-                )
-                
-                if len(self.vouchers) > 10:
-                    message += f"\n\n... and {len(self.vouchers) - 10} more vouchers"
-                
-                await query.edit_message_text(message, parse_mode="Markdown")
-            
-            elif query.data == "help":
-                help_text = (
-                    " *SHEIN Voucher Bot Help*\n\n"
-                    "*How to use:*\n"
-                    "1. Click 'Start Auto-Collector'\n"
-                    "2. Bot runs in background 24/7\n"
-                    "3. View collected vouchers anytime\n"
-                    "4. Check statistics for progress\n\n"
-                    "*Commands in chat:*\n"
-                    " /start - Show menu\n"
-                    " /stats - Statistics\n"
-                    " /vouchers - View vouchers\n"
-                    " /help - Help message\n\n"
-                    "*Note:*\n"
-                    " Collector runs continuously\n"
-                    " All vouchers are saved\n"
-                    " Access via web dashboard too"
-                )
-                
-                await query.edit_message_text(help_text, parse_mode="Markdown")
+            await query.edit_message_text(help_text, parse_mode="Markdown")
     
-    def run_telegram_bot(self):
+    def run(self):
         """Run Telegram bot with proper polling"""
         if not TELEGRAM_AVAILABLE:
             logger.error("Telegram module not available")
             return
         
-        if not self.bot_token:
+        if not self.voucher_bot.bot_token:
             logger.error("No Telegram bot token provided")
             return
         
         try:
-            logger.info(" Starting Telegram bot...")
+            logger.info("🤖 Starting Telegram bot...")
             
             # Create application
-            self.application = Application.builder().token(self.bot_token).build()
+            self.application = Application.builder().token(self.voucher_bot.bot_token).build()
             
             # Add handlers
             self.application.add_handler(CommandHandler("start", self.start_command))
@@ -703,8 +708,8 @@ class SheinVoucherBot:
             self.application.add_handler(CallbackQueryHandler(self.callback_handler))
             
             # Start bot with polling
-            logger.info(" Telegram bot starting polling...")
-            self.telegram_bot_running = True
+            logger.info("✅ Telegram bot starting polling...")
+            self.running = True
             
             # Run the application
             self.application.run_polling(
@@ -713,23 +718,24 @@ class SheinVoucherBot:
             )
             
         except Exception as e:
-            logger.error(f" Telegram bot error: {e}")
-            self.telegram_bot_running = False
+            logger.error(f"❌ Telegram bot error: {e}")
+            self.running = False
 
 # ==============================================
 # FLASK ROUTES FOR RENDER
 # ==============================================
 
-bot_instance = SheinVoucherBot()
+voucher_bot = SheinVoucherBot()
+telegram_bot = TelegramBot(voucher_bot) if TELEGRAM_AVAILABLE else None
 
 @app.route('/')
 def home():
     """Home route for Render"""
-    total_vouchers = len(bot_instance.vouchers)
+    total_vouchers = len(voucher_bot.vouchers)
     total_value = 0
-    for voucher in bot_instance.vouchers:
+    for voucher in voucher_bot.vouchers:
         try:
-            amount = str(voucher.get('amount', '0')).replace('', '').replace(',', '').strip()
+            amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip()
             total_value += float(amount)
         except:
             pass
@@ -737,10 +743,10 @@ def home():
     return jsonify({
         "status": "running",
         "vouchers_collected": total_vouchers,
-        "total_value": f"{total_value:.2f}",
-        "requests_per_second": bot_instance.requests_per_second,
-        "collector_running": bot_instance.collector_running,
-        "telegram_bot": bot_instance.telegram_bot_running,
+        "total_value": f"₹{total_value:.2f}",
+        "requests_per_second": voucher_bot.requests_per_second,
+        "collector_running": voucher_bot.collector_running,
+        "telegram_bot": telegram_bot.running if telegram_bot else False,
         "uptime": "24/7"
     })
 
@@ -752,14 +758,14 @@ def health():
 @app.route('/stats')
 def stats():
     """Statistics endpoint"""
-    total_vouchers = len(bot_instance.vouchers)
-    total_users = len(bot_instance.users)
-    total_numbers = len(bot_instance.numbers)
+    total_vouchers = len(voucher_bot.vouchers)
+    total_users = len(voucher_bot.users)
+    total_numbers = len(voucher_bot.numbers)
     
     total_value = 0
-    for voucher in bot_instance.vouchers:
+    for voucher in voucher_bot.vouchers:
         try:
-            amount = str(voucher.get('amount', '0')).replace('', '').replace(',', '').strip())
+            amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip()
             total_value += float(amount)
         except:
             pass
@@ -769,12 +775,12 @@ def stats():
         "total_value": total_value,
         "total_users": total_users,
         "valid_numbers": total_numbers,
-        "requests_per_second": bot_instance.requests_per_second,
-        "collector_running": bot_instance.collector_running,
+        "requests_per_second": voucher_bot.requests_per_second,
+        "collector_running": voucher_bot.collector_running,
         "performance": {
-            "max_workers": bot_instance.max_workers,
-            "batch_size": bot_instance.batch_size,
-            "timeout": bot_instance.request_timeout
+            "max_workers": voucher_bot.max_workers,
+            "batch_size": voucher_bot.batch_size,
+            "timeout": voucher_bot.request_timeout
         }
     })
 
@@ -782,15 +788,15 @@ def stats():
 def vouchers():
     """Vouchers endpoint"""
     return jsonify({
-        "count": len(bot_instance.vouchers),
-        "vouchers": bot_instance.vouchers[-50:] if len(bot_instance.vouchers) > 50 else bot_instance.vouchers
+        "count": len(voucher_bot.vouchers),
+        "vouchers": voucher_bot.vouchers[-50:] if len(voucher_bot.vouchers) > 50 else voucher_bot.vouchers
     })
 
 @app.route('/start')
 def start_collector():
     """Start auto-collector"""
-    if not bot_instance.collector_running:
-        collector_thread = threading.Thread(target=bot_instance.run_collector, daemon=True)
+    if not voucher_bot.collector_running:
+        collector_thread = threading.Thread(target=voucher_bot.run_collector, daemon=True)
         collector_thread.start()
         return jsonify({"status": "started", "message": "Collector started successfully"})
     else:
@@ -802,33 +808,33 @@ def start_collector():
 
 def main():
     """Main function"""
-    logger.info(" Starting SHEIN Voucher Bot...")
+    logger.info("🚀 Starting SHEIN Voucher Bot...")
     
     # Start Telegram bot in separate thread
-    if bot_instance.bot_token and TELEGRAM_AVAILABLE:
-        telegram_thread = threading.Thread(target=bot_instance.run_telegram_bot, daemon=True)
+    if voucher_bot.bot_token and TELEGRAM_AVAILABLE and telegram_bot:
+        telegram_thread = threading.Thread(target=telegram_bot.run, daemon=True)
         telegram_thread.start()
-        logger.info(" Telegram bot thread started")
+        logger.info("✅ Telegram bot thread started")
     else:
-        logger.info(" Telegram bot not started (no token or module missing)")
+        logger.info("ℹ️ Telegram bot not started (no token or module missing)")
     
     # Start collector automatically
     if os.getenv('AUTO_START', 'true').lower() == 'true':
-        logger.info(" Auto-starting collector...")
-        collector_thread = threading.Thread(target=bot_instance.run_collector, daemon=True)
+        logger.info("🚀 Auto-starting collector...")
+        collector_thread = threading.Thread(target=voucher_bot.run_collector, daemon=True)
         collector_thread.start()
-        logger.info(" Collector thread started")
+        logger.info("✅ Collector thread started")
     
     # Start Flask app
     port = int(os.environ.get('PORT', 8080))
-    logger.info(f" Starting Flask app on port {port}")
+    logger.info(f"🌐 Starting Flask app on port {port}")
     
     # Simple print for debugging
     print(f"\n" + "="*50)
-    print(f" SHEIN Voucher Bot is LIVE!")
-    print(f" Web Dashboard: http://0.0.0.0:{port}")
-    print(f" Telegram Bot: {' ACTIVE' if bot_instance.bot_token else ' INACTIVE'}")
-    print(f" Collector: {' RUNNING' if bot_instance.collector_running else ' STOPPED'}")
+    print(f"🚀 SHEIN Voucher Bot is LIVE!")
+    print(f"📊 Web Dashboard: http://0.0.0.0:{port}")
+    print(f"🤖 Telegram Bot: {'✅ ACTIVE' if voucher_bot.bot_token else '❌ INACTIVE'}")
+    print(f"⚡ Collector: {'✅ RUNNING' if voucher_bot.collector_running else '❌ STOPPED'}")
     print(f"="*50 + "\n")
     
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
