@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SHEIN Voucher Bot - Ultra Fast Continuous Auto-Collector
-Version: 6.0 - Fixed for python-telegram-bot v20+
+Version: 6.0 - Fixed for python-telegram-bot v13.15
 Deployment: Render.com Flask compatible
 """
 
@@ -446,7 +446,7 @@ class SheinVoucherBot:
         logger.info("🛑 Collector stopped")
     
     # ==============================================
-    # TELEGRAM BOT HANDLERS (Updated for v20+)
+    # TELEGRAM BOT HANDLERS
     # ==============================================
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -602,7 +602,7 @@ class SheinVoucherBot:
             total_value = 0
             for voucher in self.vouchers:
                 try:
-                    amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip())
+                    amount = str(voucher.get('amount', '0')).replace('₹', '').replace(',', '').strip()
                     total_value += float(amount)
                 except:
                     pass
@@ -676,7 +676,7 @@ class SheinVoucherBot:
             await query.edit_message_text(help_text, parse_mode="Markdown")
     
     def run_telegram_bot(self):
-        """Run Telegram bot with proper polling for v20+"""
+        """Run Telegram bot with proper polling"""
         if not TELEGRAM_AVAILABLE:
             logger.error("Telegram module not available")
             return
