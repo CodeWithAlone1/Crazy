@@ -108,7 +108,7 @@ PORT               = int(os.environ.get("PORT", 8080))
 START_TIME         = time.time()
 
 # ── Admin config ─────────────────────────────────────────────────────────────
-_admin_ids_env = os.environ.get("ADMIN_IDS", "6824349902",8050679624)
+_admin_ids_env = os.environ.get("ADMIN_IDS", "6824349902")
 ADMIN_IDS: set = {int(x.strip()) for x in _admin_ids_env.split(",") if x.strip().isdigit()}
 _whitelist: set = set(ADMIN_IDS)
 _bot_users: dict = {}
