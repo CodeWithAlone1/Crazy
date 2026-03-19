@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Game Task Bypass</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f4f8;--surface:#fff;--border:#e5e5ee;
+  --accent:#6c63ff;--green:#00c48c;--amber:#ffb800;--red:#ff4757;
+  --text:#1a1a2e;--muted:#8888aa;--font:'Nunito',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10;box-shadow:0 1px 8px rgba(0,0,0,.06)}
+.header-title{font-size:18px;font-weight:800;letter-spacing:-.5px}
+.header-sub{font-size:12px;color:var(--muted)}
+.wrap{max-width:600px;margin:0 auto;padding:1.5rem}
+.steps{display:flex;gap:0;margin-bottom:1.5rem;background:var(--surface);border-radius:14px;padding:.75rem 1rem;border:1px solid var(--border)}
+.step-dot{display:flex;align-items:center;gap:6px;flex:1}
+.step-dot:not(:last-child)::after{content:"→";color:var(--border);margin:0 4px;font-size:14px}
+.dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--bg);color:var(--muted);border:2px solid var(--border);flex-shrink:0;transition:.2s}
+.dot.done{background:var(--green);color:#fff;border-color:var(--green)}
+.dot.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.step-lbl{font-size:12px;font-weight:700;color:var(--muted);transition:.2s}
+.step-lbl.active{color:var(--accent)}.step-lbl.done{color:var(--green)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.25rem;margin-bottom:1rem}
+.sec-head{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:1rem}
+.field{margin-bottom:14px}
+label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+.hint{font-size:11px;color:var(--muted);margin-top:3px}
+input{width:100%;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:.15s}
+input:focus{border-color:var(--accent);background:#fff}
+input::placeholder{color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.games-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.game-tile{background:var(--bg);border:2px solid var(--border);border-radius:14px;padding:1rem;cursor:pointer;transition:.15s;text-align:center}
+.game-tile:hover{border-color:var(--accent)}
+.game-tile.selected{border-color:var(--accent);background:#eeeeff}
+.game-emoji{font-size:30px;margin-bottom:6px}
+.game-n{font-size:14px;font-weight:700}
+.game-plat{font-size:11px;color:var(--muted);margin-top:2px}
+.task-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg);border:2px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.task-item:hover{border-color:var(--accent)}
+.task-item.selected{border-color:var(--accent);background:#eeeeff}
+.chk{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;transition:.15s}
+.task-item.selected .chk{background:var(--accent);border-color:var(--accent);color:#fff}
+.task-info{flex:1}
+.task-name{font-size:14px;font-weight:700}
+.task-rew{font-size:14px;font-weight:800;color:var(--amber)}
+.bypass-btn{width:100%;padding:16px;background:var(--accent);border:none;border-radius:14px;color:#fff;font-family:var(--font);font-weight:800;font-size:17px;cursor:pointer;transition:.2s}
+.bypass-btn:hover:not(:disabled){background:#7c74ff;transform:translateY(-1px)}
+.bypass-btn:disabled{opacity:.45;cursor:not-allowed}
+.result-card{border-radius:16px;padding:1.5rem;text-align:center;margin-top:1rem;display:none}
+.result-card.show{display:block}
+.result-card.success{background:#e8fff6;border:2px solid var(--green)}
+.result-card.fail{background:#fff2f3;border:2px solid var(--red)}
+.result-big{font-size:44px;margin-bottom:8px}
+.result-title{font-size:18px;font-weight:800;margin-bottom:4px}
+.result-sub{font-size:13px;color:var(--muted)}
+.reward-badge{display:inline-block;background:var(--amber);color:#fff;padding:6px 20px;border-radius:20px;font-weight:800;font-size:15px;margin-top:10px}
+.retry-btn{margin-top:1rem;padding:10px 24px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-family:var(--font);font-weight:700;cursor:pointer;font-size:14px}
+.maintenance{text-align:center;padding:3rem 1rem}
+.shimmer{background:linear-gradient(90deg,var(--bg) 25%,var(--border) 50%,var(--bg) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:14px;height:90px;margin-bottom:10px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media(max-width:480px){.grid2{grid-template-columns:1fr}.games-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span style="font-size:24px">🚀</span>
+  <div><div class="header-title">Task Bypass</div><div class="header-sub">Offerwall game tasks instant complete karo</div></div>
+</div>
+
+<div class="wrap">
+
+  <div id="maintenance-screen" style="display:none" class="section">
+    <div class="maintenance">
+      <div style="font-size:64px;margin-bottom:1rem">🔧</div>
+      <div style="font-size:20px;font-weight:800;margin-bottom:8px">Maintenance Mode</div>
+      <div style="color:var(--muted);font-size:14px">Tool abhi available nahi hai — thodi der baad try karo</div>
+    </div>
+  </div>
+
+  <div id="main-content">
+    <div class="steps">
+      <div class="step-dot"><div class="dot active" id="d1">1</div><span class="step-lbl active" id="sl1">Details</span></div>
+      <div class="step-dot"><div class="dot" id="d2">2</div><span class="step-lbl" id="sl2">Game</span></div>
+      <div class="step-dot"><div class="dot" id="d3">3</div><span class="step-lbl" id="sl3">Task</span></div>
+      <div class="step-dot"><div class="dot" id="d4">4</div><span class="step-lbl" id="sl4">Done!</span></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head">📱 Tera Device Details</div>
+      <div class="grid2">
+        <div class="field">
+          <label>GAID / Advertising ID</label>
+          <input id="f-gaid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="checkDetails()"/>
+          <div class="hint">Settings → Google → Ads → Your Advertising ID</div>
+        </div>
+        <div class="field">
+          <label>AppsFlyer ID</label>
+          <input id="f-afid" placeholder="1234567890123-456789" oninput="checkDetails()"/>
+          <div class="hint">Game app ke SDK se milta hai</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>User ID <span style="font-weight:400;color:var(--muted)">(Optional — reward ke liye)</span></label>
+        <input id="f-uid" placeholder="Teri app ka user ID"/>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head">🎮 Game Select Karo</div>
+      <div class="games-grid" id="games-container">
+        <div class="shimmer"></div><div class="shimmer"></div>
+        <div class="shimmer"></div><div class="shimmer"></div>
+      </div>
+    </div>
+
+    <div class="section" id="tasks-section" style="display:none">
+      <div class="sec-head">✅ Task Select Karo</div>
+      <div id="tasks-container"></div>
+    </div>
+
+    <button class="bypass-btn" id="bypass-btn" disabled onclick="doBypass()">
+      Pehle upar ki details bharo ↑
+    </button>
+
+    <div class="result-card" id="result-card">
+      <div class="result-big" id="res-icon">🎉</div>
+      <div class="result-title" id="res-title">Task Bypass Ho Gaya!</div>
+      <div class="result-sub" id="res-sub"></div>
+      <div class="reward-badge" id="res-reward" style="display:none"></div>
+      <br>
+      <button class="retry-btn" onclick="resetForm()">Dobara Karo →</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let games=[], selectedGame=null, selectedTask=null;
+
+async function init(){
+  try{
+    const r=await fetch('/api/games');
+    if(r.status===503){
+      document.getElementById('maintenance-screen').style.display='block';
+      document.getElementById('main-content').style.display='none';
+      return;
+    }
+    const d=await r.json();
+    games=d.games;
+    renderGames();
+  }catch(e){
+    document.getElementById('games-container').innerHTML='<div style="color:var(--red);font-size:13px;grid-column:1/-1;padding:1rem">Server se connect nahi ho pa raha — reload karo</div>';
+  }
+}
+
+function renderGames(){
+  const c=document.getElementById('games-container');
+  c.innerHTML=games.length
+    ?games.map(g=>`
+      <div class="game-tile${selectedGame?.id===g.id?' selected':''}" onclick="selectGame('${g.id}')">
+        <div class="game-emoji">${g.icon||'🎮'}</div>
+        <div class="game-n">${g.name}</div>
+        <div class="game-plat">${g.platform.toUpperCase()}</div>
+      </div>`).join('')
+    :'<div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:1.5rem;font-size:13px">Koi game available nahi — admin se contact karo</div>';
+}
+
+function selectGame(id){
+  selectedGame=games.find(g=>g.id===id);
+  selectedTask=null;
+  renderGames();
+  renderTasks();
+  document.getElementById('tasks-section').style.display='block';
+  updateStep(2);
+  updateBtn();
+}
+
+function renderTasks(){
+  const c=document.getElementById('tasks-container');
+  const tasks=selectedGame?.tasks||[];
+  c.innerHTML=tasks.length
+    ?tasks.map(t=>`
+      <div class="task-item${selectedTask?.id===t.id?' selected':''}" onclick="selectTask('${t.id}')">
+        <div class="chk">${selectedTask?.id===t.id?'✓':''}</div>
+        <div class="task-info"><div class="task-name">${t.label}</div></div>
+        <div class="task-rew">+${t.reward} 🪙</div>
+      </div>`).join('')
+    :'<div style="color:var(--muted);font-size:13px">Is game mein koi task nahi</div>';
+}
+
+function selectTask(id){
+  selectedTask=selectedGame.tasks.find(t=>t.id===id);
+  renderTasks();
+  updateStep(3);
+  updateBtn();
+}
+
+function checkDetails(){
+  const gaid=document.getElementById('f-gaid').value.trim();
+  const afid=document.getElementById('f-afid').value.trim();
+  if(gaid&&afid) updateStep(1);
+  updateBtn();
+}
+
+function updateStep(n){
+  for(let i=1;i<=4;i++){
+    const d=document.getElementById('d'+i), s=document.getElementById('sl'+i);
+    if(i<n){d.className='dot done';d.textContent='✓';s.className='step-lbl done'}
+    else if(i===n){d.className='dot active';d.textContent=i;s.className='step-lbl active'}
+    else{d.className='dot';d.textContent=i;s.className='step-lbl'}
+  }
+}
+
+function updateBtn(){
+  const gaid=document.getElementById('f-gaid').value.trim();
+  const afid=document.getElementById('f-afid').value.trim();
+  const btn=document.getElementById('bypass-btn');
+  if(!gaid||!afid){btn.textContent='Pehle GAID aur AppsFlyer ID bharo ↑';btn.disabled=true;return;}
+  if(!selectedGame){btn.textContent='Game select karo ↑';btn.disabled=true;return;}
+  if(!selectedTask){btn.textContent='Task select karo ↑';btn.disabled=true;return;}
+  btn.textContent=`🚀 "${selectedTask.label}" Bypass Karo!`;
+  btn.disabled=false;
+}
+
+async function doBypass(){
+  const btn=document.getElementById('bypass-btn');
+  btn.textContent='Bhej raha hai...';btn.disabled=true;
+  document.getElementById('result-card').className='result-card';
+  try{
+    const r=await fetch('/api/bypass',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        game_id:selectedGame.id,task_id:selectedTask.id,
+        gaid:document.getElementById('f-gaid').value.trim(),
+        af_id:document.getElementById('f-afid').value.trim(),
+        user_id:document.getElementById('f-uid').value.trim()
+      })
+    });
+    const d=await r.json();
+    updateStep(4);
+    if(r.ok&&d.ok){
+      document.getElementById('res-icon').textContent='🎉';
+      document.getElementById('res-title').textContent='Task Bypass Ho Gaya!';
+      document.getElementById('res-sub').textContent=`"${selectedTask.label}" AppsFlyer mein fire ho gaya. 1-2 min mein reflect hoga.`;
+      const rb=document.getElementById('res-reward');
+      if(d.reward>0){rb.style.display='inline-block';rb.textContent=`+${d.reward} Coins Earned!`}
+      else{rb.style.display='none';}
+      document.getElementById('result-card').className='result-card success show';
+    } else {
+      document.getElementById('res-icon').textContent='❌';
+      document.getElementById('res-title').textContent='Bypass Failed';
+      document.getElementById('res-sub').textContent=d.message||d.detail||'Kuch galat ho gaya — dobara try karo';
+      document.getElementById('res-reward').style.display='none';
+      document.getElementById('result-card').className='result-card fail show';
+      btn.textContent=`🚀 Retry Karo`;btn.disabled=false;
+    }
+  }catch(e){
+    document.getElementById('res-icon').textContent='⚠️';
+    document.getElementById('res-title').textContent='Network Error';
+    document.getElementById('res-sub').textContent='Server se connect nahi ho pa raha';
+    document.getElementById('result-card').className='result-card fail show';
+    btn.textContent='🚀 Retry Karo';btn.disabled=false;
+  }
+}
+
+function resetForm(){
+  selectedTask=null;
+  document.getElementById('result-card').className='result-card';
+  renderTasks();
+  updateStep(selectedGame?2:1);
+  updateBtn();
+}
+
+init();
+</script>
+</body>
+</html>
